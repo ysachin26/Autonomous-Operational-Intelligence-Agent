@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useActions } from '../components/ActionProvider';
 import {
     TrendingUp,
     TrendingDown,
@@ -40,6 +41,7 @@ import {
 } from '../data/demoData';
 
 export default function Dashboard() {
+    const { requestAction, executedActions } = useActions();
     const [historicalData, setHistoricalData] = useState([]);
     const [realtimeMetrics, setRealtimeMetrics] = useState(null);
     const [todayEvents, setTodayEvents] = useState([]);
@@ -100,7 +102,8 @@ export default function Dashboard() {
             impact: 55000,
             confidence: 94,
             priority: 'high',
-            reason: 'Frequent micro-downtimes detected'
+            reason: 'Frequent micro-downtimes detected',
+            action: 'A maintenance ticket will be created for CNC Machine 2, scheduled for the next planned downtime window.',
         },
         {
             id: 2,
@@ -108,7 +111,8 @@ export default function Dashboard() {
             impact: 32000,
             confidence: 89,
             priority: 'medium',
-            reason: 'Operator overload pattern detected'
+            reason: 'Operator overload pattern detected',
+            action: 'Task assignments will be redistributed from Shift B to Shift C, reducing operator load by 20%.',
         },
         {
             id: 3,
@@ -116,9 +120,26 @@ export default function Dashboard() {
             impact: 18000,
             confidence: 82,
             priority: 'medium',
-            reason: 'Average 15 min gap between shifts'
+            reason: 'Average 15 min gap between shifts',
+            action: 'Shift handover process will be optimized with parallel checkout/checkin procedures.',
         },
     ];
+
+    const handleExecute = (rec) => {
+        // Check if already executed
+        if (executedActions.find(a => a.title === rec.title)) {
+            return; // Already executed
+        }
+        requestAction({
+            title: rec.title,
+            description: rec.reason,
+            impact: rec.impact,
+            confidence: rec.confidence,
+            action: rec.action,
+        });
+    };
+
+    const isExecuted = (rec) => executedActions.some(a => a.title === rec.title);
 
     return (
         <div className="space-y-6">
@@ -194,13 +215,13 @@ export default function Dashboard() {
                             <div className="flex items-center justify-between mb-2">
                                 <span className="font-medium text-gray-900">{machine.id}</span>
                                 <span className={`w-3 h-3 rounded-full ${machine.status === 'running' ? 'bg-accent-500 animate-pulse' :
-                                        machine.status === 'down' ? 'bg-red-500' : 'bg-gray-400'
+                                    machine.status === 'down' ? 'bg-red-500' : 'bg-gray-400'
                                     }`} />
                             </div>
                             <p className="text-sm text-gray-500 truncate">{machine.name}</p>
                             <div className="mt-2 flex items-center justify-between">
                                 <span className={`text-xs font-medium ${machine.status === 'running' ? 'text-accent-600' :
-                                        machine.status === 'down' ? 'text-red-600' : 'text-gray-500'
+                                    machine.status === 'down' ? 'text-red-600' : 'text-gray-500'
                                     }`}>
                                     {machine.status.toUpperCase()}
                                 </span>
@@ -333,8 +354,12 @@ export default function Dashboard() {
                                             </span>
                                         </div>
                                     </div>
-                                    <button className="btn-primary text-xs py-1.5 px-3">
-                                        Execute
+                                    <button
+                                        onClick={() => handleExecute(rec)}
+                                        disabled={isExecuted(rec)}
+                                        className={`text-xs py-1.5 px-3 ${isExecuted(rec) ? 'btn-success cursor-default' : 'btn-primary'}`}
+                                    >
+                                        {isExecuted(rec) ? '✓ Executed' : 'Execute'}
                                     </button>
                                 </div>
                             </div>
@@ -351,25 +376,25 @@ export default function Dashboard() {
                     <div className="space-y-4">
                         {anomalies.map((anomaly) => (
                             <div key={anomaly.id} className={`p-4 rounded-lg border ${anomaly.hidden && showHidden ? 'border-purple-300 bg-purple-50' :
-                                    anomaly.hidden ? 'border-gray-200 bg-gray-50 opacity-50' :
-                                        'border-gray-200 bg-gray-50'
+                                anomaly.hidden ? 'border-gray-200 bg-gray-50 opacity-50' :
+                                    'border-gray-200 bg-gray-50'
                                 }`}>
                                 <div className="flex items-start gap-3">
                                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${anomaly.severity === 'HIGH' ? 'bg-red-100' :
-                                            anomaly.severity === 'MEDIUM' ? 'bg-amber-100' : 'bg-gray-100'
+                                        anomaly.severity === 'MEDIUM' ? 'bg-amber-100' : 'bg-gray-100'
                                         }`}>
                                         {anomaly.hidden ? (
                                             <EyeOff className={`w-5 h-5 ${showHidden ? 'text-purple-600' : 'text-gray-400'}`} />
                                         ) : (
                                             <AlertCircle className={`w-5 h-5 ${anomaly.severity === 'HIGH' ? 'text-red-600' :
-                                                    anomaly.severity === 'MEDIUM' ? 'text-amber-600' : 'text-gray-600'
+                                                anomaly.severity === 'MEDIUM' ? 'text-amber-600' : 'text-gray-600'
                                                 }`} />
                                         )}
                                     </div>
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2">
                                             <span className={`badge ${anomaly.severity === 'HIGH' ? 'badge-danger' :
-                                                    anomaly.severity === 'MEDIUM' ? 'badge-warning' : 'badge-secondary'
+                                                anomaly.severity === 'MEDIUM' ? 'badge-warning' : 'badge-secondary'
                                                 }`}>
                                                 {anomaly.severity}
                                             </span>
