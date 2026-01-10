@@ -1,102 +1,73 @@
-// Prisma Schema for AOIA
+// Prisma Schema for AOIA - MongoDB
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
 }
 
 // User and Authentication
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  password     String
-  name         String
-  role         Role     @default(OPERATOR)
-  organization Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  auditLogs    AuditLog[]
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  email          String   @unique
+  password       String
+  name           String
+  role           String   @default("OPERATOR") // ADMIN, MANAGER, OPERATOR
+  organizationId String   @db.ObjectId
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  auditLogs      AuditLog[]
 }
 
 model Organization {
-  id            String   @id @default(cuid())
-  name          String
-  industry      Industry @default(GENERAL)
-  costPerMinute Float    @default(50) // Cost in currency per minute of operation
-  users         User[]
-  metrics       Metric[]
-  anomalies     Anomaly[]
-  incidents     Incident[]
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  industry        String   @default("GENERAL") // BPO, MANUFACTURING, LOGISTICS, RETAIL, HEALTHCARE, GENERAL
+  costPerMinute   Float    @default(50)
+  users           User[]
+  metrics         Metric[]
+  anomalies       Anomaly[]
+  incidents       Incident[]
   recommendations Recommendation[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
-
-enum Role {
-  ADMIN
-  MANAGER
-  OPERATOR
-}
-
-enum Industry {
-  BPO
-  MANUFACTURING
-  LOGISTICS
-  RETAIL
-  HEALTHCARE
-  GENERAL
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 // Operational Metrics
 model Metric {
-  id             String   @id @default(cuid())
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  organizationId String   @db.ObjectId
   organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
   timestamp      DateTime @default(now())
-  metricType     MetricType
+  metricType     String   // UTILIZATION, THROUGHPUT, IDLE_TIME, etc.
   value          Float
   unit           String
-  source         String   // e.g., "machine-1", "shift-a", "agent-123"
+  source         String
   metadata       Json?
   createdAt      DateTime @default(now())
 
   @@index([organizationId, timestamp])
-  @@index([metricType, timestamp])
-}
-
-enum MetricType {
-  UTILIZATION
-  THROUGHPUT
-  IDLE_TIME
-  RESPONSE_TIME
-  ERROR_RATE
-  DOWNTIME
-  CALL_DURATION
-  TASK_COMPLETION
-  MACHINE_SPEED
-  QUALITY_SCORE
 }
 
 // Anomaly Detection
 model Anomaly {
-  id             String   @id @default(cuid())
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  organizationId String   @db.ObjectId
   organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
   timestamp      DateTime @default(now())
-  anomalyType    AnomalyType
-  severity       Severity
+  anomalyType    String   // IDLE_SPIKE, THROUGHPUT_DROP, RESPONSE_DELAY, etc.
+  severity       String   // LOW, MEDIUM, HIGH, CRITICAL
   source         String
   description    String
   value          Float
   expectedValue  Float
   deviation      Float
-  status         AnomalyStatus @default(OPEN)
-  incident       Incident? @relation(fields: [incidentId], references: [id])
-  incidentId     String?
+  status         String   @default("OPEN") // OPEN, ACKNOWLEDGED, INVESTIGATING, RESOLVED, FALSE_POSITIVE
+  incidentId     String?  @db.ObjectId
+  incident       Incident? @relation(fields: [incidentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   metadata       Json?
   createdAt      DateTime @default(now())
 
@@ -104,43 +75,17 @@ model Anomaly {
   @@index([status])
 }
 
-enum AnomalyType {
-  IDLE_SPIKE
-  THROUGHPUT_DROP
-  RESPONSE_DELAY
-  MACHINE_SLOWDOWN
-  QUALITY_DECLINE
-  OVERLOAD
-  UNDERPERFORMANCE
-  PATTERN_BREAK
-}
-
-enum Severity {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
-}
-
-enum AnomalyStatus {
-  OPEN
-  ACKNOWLEDGED
-  INVESTIGATING
-  RESOLVED
-  FALSE_POSITIVE
-}
-
-// Incidents (grouped anomalies with loss calculation)
+// Incidents
 model Incident {
-  id              String   @id @default(cuid())
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  organizationId  String   @db.ObjectId
   organization    Organization @relation(fields: [organizationId], references: [id])
-  organizationId  String
   title           String
   description     String
   startTime       DateTime
   endTime         DateTime?
-  status          IncidentStatus @default(ACTIVE)
-  estimatedLoss   Float    // Monetary loss
+  status          String   @default("ACTIVE") // ACTIVE, INVESTIGATING, MITIGATING, RESOLVED, CLOSED
+  estimatedLoss   Float
   actualLoss      Float?
   rootCause       String?
   resolution      String?
@@ -152,31 +97,23 @@ model Incident {
   @@index([organizationId, status])
 }
 
-enum IncidentStatus {
-  ACTIVE
-  INVESTIGATING
-  MITIGATING
-  RESOLVED
-  CLOSED
-}
-
 // AI-Generated Recommendations
 model Recommendation {
-  id             String   @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-  incident       Incident? @relation(fields: [incidentId], references: [id])
-  incidentId     String?
-  title          String
-  description    String
-  actionType     ActionType
-  priority       Priority
-  status         RecommendationStatus @default(PENDING)
-  estimatedImpact Float   // Estimated savings/improvement
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  organizationId  String   @db.ObjectId
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  incidentId      String?  @db.ObjectId
+  incident        Incident? @relation(fields: [incidentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  title           String
+  description     String
+  actionType      String   // REBALANCE_WORKLOAD, SCHEDULE_MAINTENANCE, etc.
+  priority        String   // LOW, MEDIUM, HIGH, URGENT
+  status          String   @default("PENDING") // PENDING, APPROVED, EXECUTING, COMPLETED, REJECTED, FAILED
+  estimatedImpact Float
   actualImpact    Float?
-  confidence      Float   // AI confidence score 0-1
-  reasoning       String  // LLM explanation
-  actionPayload   Json?   // Data needed to execute action
+  confidence      Float
+  reasoning       String
+  actionPayload   Json?
   executedAt      DateTime?
   executedBy      String?
   createdAt       DateTime @default(now())
@@ -185,38 +122,11 @@ model Recommendation {
   @@index([organizationId, status])
 }
 
-enum ActionType {
-  REBALANCE_WORKLOAD
-  SCHEDULE_MAINTENANCE
-  ADJUST_ROUTING
-  ALERT_SUPERVISOR
-  MODIFY_PROCESS
-  TRAINING_NEEDED
-  RESOURCE_ALLOCATION
-  CUSTOM
-}
-
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
-enum RecommendationStatus {
-  PENDING
-  APPROVED
-  EXECUTING
-  COMPLETED
-  REJECTED
-  FAILED
-}
-
-// Audit Log for compliance
+// Audit Log
 model AuditLog {
-  id        String   @id @default(cuid())
-  user      User?    @relation(fields: [userId], references: [id])
-  userId    String?
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String?  @db.ObjectId
+  user      User?    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   action    String
   entity    String
   entityId  String?
@@ -225,23 +135,16 @@ model AuditLog {
   timestamp DateTime @default(now())
 
   @@index([userId, timestamp])
-  @@index([entity, entityId])
 }
 
 // Chat Messages
 model ChatMessage {
-  id             String   @id @default(cuid())
-  sessionId      String
-  role           ChatRole
-  content        String
-  metadata       Json?
-  createdAt      DateTime @default(now())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId String
+  role      String   // USER, ASSISTANT, SYSTEM
+  content   String
+  metadata  Json?
+  createdAt DateTime @default(now())
 
   @@index([sessionId, createdAt])
-}
-
-enum ChatRole {
-  USER
-  ASSISTANT
-  SYSTEM
 }
