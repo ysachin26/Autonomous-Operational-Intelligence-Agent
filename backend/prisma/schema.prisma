@@ -1,0 +1,247 @@
+// Prisma Schema for AOIA
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User and Authentication
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  password     String
+  name         String
+  role         Role     @default(OPERATOR)
+  organization Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  auditLogs    AuditLog[]
+}
+
+model Organization {
+  id            String   @id @default(cuid())
+  name          String
+  industry      Industry @default(GENERAL)
+  costPerMinute Float    @default(50) // Cost in currency per minute of operation
+  users         User[]
+  metrics       Metric[]
+  anomalies     Anomaly[]
+  incidents     Incident[]
+  recommendations Recommendation[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  OPERATOR
+}
+
+enum Industry {
+  BPO
+  MANUFACTURING
+  LOGISTICS
+  RETAIL
+  HEALTHCARE
+  GENERAL
+}
+
+// Operational Metrics
+model Metric {
+  id             String   @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  timestamp      DateTime @default(now())
+  metricType     MetricType
+  value          Float
+  unit           String
+  source         String   // e.g., "machine-1", "shift-a", "agent-123"
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, timestamp])
+  @@index([metricType, timestamp])
+}
+
+enum MetricType {
+  UTILIZATION
+  THROUGHPUT
+  IDLE_TIME
+  RESPONSE_TIME
+  ERROR_RATE
+  DOWNTIME
+  CALL_DURATION
+  TASK_COMPLETION
+  MACHINE_SPEED
+  QUALITY_SCORE
+}
+
+// Anomaly Detection
+model Anomaly {
+  id             String   @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  timestamp      DateTime @default(now())
+  anomalyType    AnomalyType
+  severity       Severity
+  source         String
+  description    String
+  value          Float
+  expectedValue  Float
+  deviation      Float
+  status         AnomalyStatus @default(OPEN)
+  incident       Incident? @relation(fields: [incidentId], references: [id])
+  incidentId     String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, timestamp])
+  @@index([status])
+}
+
+enum AnomalyType {
+  IDLE_SPIKE
+  THROUGHPUT_DROP
+  RESPONSE_DELAY
+  MACHINE_SLOWDOWN
+  QUALITY_DECLINE
+  OVERLOAD
+  UNDERPERFORMANCE
+  PATTERN_BREAK
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AnomalyStatus {
+  OPEN
+  ACKNOWLEDGED
+  INVESTIGATING
+  RESOLVED
+  FALSE_POSITIVE
+}
+
+// Incidents (grouped anomalies with loss calculation)
+model Incident {
+  id              String   @id @default(cuid())
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  organizationId  String
+  title           String
+  description     String
+  startTime       DateTime
+  endTime         DateTime?
+  status          IncidentStatus @default(ACTIVE)
+  estimatedLoss   Float    // Monetary loss
+  actualLoss      Float?
+  rootCause       String?
+  resolution      String?
+  anomalies       Anomaly[]
+  recommendations Recommendation[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([organizationId, status])
+}
+
+enum IncidentStatus {
+  ACTIVE
+  INVESTIGATING
+  MITIGATING
+  RESOLVED
+  CLOSED
+}
+
+// AI-Generated Recommendations
+model Recommendation {
+  id             String   @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  incident       Incident? @relation(fields: [incidentId], references: [id])
+  incidentId     String?
+  title          String
+  description    String
+  actionType     ActionType
+  priority       Priority
+  status         RecommendationStatus @default(PENDING)
+  estimatedImpact Float   // Estimated savings/improvement
+  actualImpact    Float?
+  confidence      Float   // AI confidence score 0-1
+  reasoning       String  // LLM explanation
+  actionPayload   Json?   // Data needed to execute action
+  executedAt      DateTime?
+  executedBy      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([organizationId, status])
+}
+
+enum ActionType {
+  REBALANCE_WORKLOAD
+  SCHEDULE_MAINTENANCE
+  ADJUST_ROUTING
+  ALERT_SUPERVISOR
+  MODIFY_PROCESS
+  TRAINING_NEEDED
+  RESOURCE_ALLOCATION
+  CUSTOM
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum RecommendationStatus {
+  PENDING
+  APPROVED
+  EXECUTING
+  COMPLETED
+  REJECTED
+  FAILED
+}
+
+// Audit Log for compliance
+model AuditLog {
+  id        String   @id @default(cuid())
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  details   Json?
+  ipAddress String?
+  timestamp DateTime @default(now())
+
+  @@index([userId, timestamp])
+  @@index([entity, entityId])
+}
+
+// Chat Messages
+model ChatMessage {
+  id             String   @id @default(cuid())
+  sessionId      String
+  role           ChatRole
+  content        String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([sessionId, createdAt])
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}

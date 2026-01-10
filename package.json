@@ -1,0 +1,40 @@
+{
+  "name": "aoia",
+  "version": "1.0.0",
+  "description": "Autonomous Operational Intelligence Agent - AI-driven platform for detecting and eliminating operational inefficiencies",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:ml\"",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:ml": "cd ml-engine && python -m uvicorn app.main:app --reload --port 8000",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "db:migrate": "npm run db:migrate --workspace=backend",
+    "db:seed": "npm run db:seed --workspace=backend",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "operational-intelligence",
+    "ai",
+    "ml",
+    "anomaly-detection",
+    "automation",
+    "saas"
+  ],
+  "author": "AOIA Team",
+  "license": "MIT"
+}

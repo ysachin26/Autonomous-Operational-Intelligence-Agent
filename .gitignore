@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+.pytest_cache/
+
+# Database
+*.sqlite
+*.db
+
+# ML models (large files)
+ml-engine/models/*.pkl
+ml-engine/models/*.h5
+ml-engine/models/*.pt
+
+# Misc
+*.bak
+*.tmp
