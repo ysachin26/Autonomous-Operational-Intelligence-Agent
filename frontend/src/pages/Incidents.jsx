@@ -1,294 +1,401 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import {
-    AlertTriangle,
-    Clock,
-    DollarSign,
-    CheckCircle,
-    XCircle,
     Search,
     Filter,
+    AlertCircle,
+    Clock,
+    CheckCircle,
     ChevronDown,
     ChevronUp,
-    ExternalLink,
+    AlertTriangle,
+    Factory,
+    DollarSign,
+    ArrowRight,
+    Eye,
+    Zap,
 } from 'lucide-react';
-import { format } from 'date-fns';
-import api from '../services/api';
+import {
+    generateHistoricalData,
+    generateMachineEvents,
+    generateAnomalies,
+    machines,
+} from '../data/demoData';
 
 export default function Incidents() {
     const [incidents, setIncidents] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [expandedId, setExpandedId] = useState(null);
-    const [filter, setFilter] = useState('all');
+    const [statusFilter, setStatusFilter] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
+    const [timeline, setTimeline] = useState([]);
 
     useEffect(() => {
-        fetchIncidents();
+        // Generate incidents from anomalies
+        const events = generateMachineEvents(new Date());
+        const anomalies = generateAnomalies(events);
+
+        // Convert anomalies to incidents with more details
+        const generatedIncidents = [
+            {
+                id: 'INC-001',
+                title: 'Machine 2 Throughput Drop',
+                description: 'CNC Machine 2 showing 23% reduction in throughput compared to baseline. Pattern detected over last 4 hours.',
+                status: 'active',
+                severity: 'high',
+                startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+                source: 'M2 - CNC Machine 2',
+                estimatedLoss: 28000,
+                anomalies: 3,
+                rootCause: null,
+                assignee: null,
+                timeline: [
+                    { time: '10:30', event: 'Anomaly detected: efficiency dropped to 72%' },
+                    { time: '10:45', event: 'Pattern confirmed: consistent underperformance' },
+                    { time: '11:00', event: 'Incident created automatically' },
+                    { time: '11:15', event: 'AOIA: Preliminary analysis suggests bearing wear' },
+                ],
+            },
+            {
+                id: 'INC-002',
+                title: 'Shift B Extended Idle Time',
+                description: 'Cumulative idle time for Shift B exceeded threshold by 45%. Multiple operators affected.',
+                status: 'investigating',
+                severity: 'medium',
+                startTime: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+                source: 'Shift B',
+                estimatedLoss: 15000,
+                anomalies: 2,
+                rootCause: 'Material shortage suspected',
+                assignee: 'Amit Patel',
+                timeline: [
+                    { time: '14:30', event: 'Idle time threshold exceeded' },
+                    { time: '15:00', event: 'Assigned to Amit Patel for investigation' },
+                    { time: '15:30', event: 'Root cause identified: waiting for materials' },
+                ],
+            },
+            {
+                id: 'INC-003',
+                title: 'Hidden Micro-Downtimes Cluster',
+                description: '12 micro-downtimes (<3 min each) detected across Assembly Line 1. Cumulative impact exceeds normal threshold.',
+                status: 'active',
+                severity: 'medium',
+                startTime: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+                source: 'M5 - Assembly Line 1',
+                estimatedLoss: 8500,
+                anomalies: 12,
+                rootCause: null,
+                assignee: null,
+                hidden: true,
+                timeline: [
+                    { time: '08:00', event: 'First micro-downtime detected (45 sec)' },
+                    { time: '09:30', event: 'Pattern detected: recurring brief stoppages' },
+                    { time: '11:00', event: 'Cluster analysis complete: 12 events, hidden loss ₹8,500' },
+                ],
+            },
+            {
+                id: 'INC-004',
+                title: 'Quality Score Decline',
+                description: 'Product quality scores dropped below acceptable threshold on Press Machine 1.',
+                status: 'resolved',
+                severity: 'medium',
+                startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+                endTime: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
+                source: 'M4 - Press Machine 1',
+                estimatedLoss: 12000,
+                actualLoss: 9500,
+                anomalies: 1,
+                rootCause: 'Equipment calibration drift',
+                resolution: 'Recalibrated press settings and die alignment',
+                assignee: 'Vikram Rao',
+                timeline: [
+                    { time: 'Yesterday 14:00', event: 'Quality anomaly detected' },
+                    { time: 'Yesterday 15:00', event: 'Investigation started' },
+                    { time: 'Yesterday 16:30', event: 'Root cause identified' },
+                    { time: 'Yesterday 18:00', event: 'Resolution applied, quality normalized' },
+                ],
+            },
+            {
+                id: 'INC-005',
+                title: 'Shift Transition Gap',
+                description: 'Average 18-minute unproductive gap detected during Shift A to B transitions this week.',
+                status: 'investigating',
+                severity: 'low',
+                startTime: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+                source: 'All Machines',
+                estimatedLoss: 22000,
+                anomalies: 5,
+                rootCause: 'Handover process inefficiency',
+                assignee: null,
+                hidden: true,
+                timeline: [
+                    { time: '3 days ago', event: 'Pattern analysis started' },
+                    { time: '2 days ago', event: 'Confirmed: consistent gaps during transitions' },
+                    { time: 'Yesterday', event: 'AOIA recommendation: optimize handover checklist' },
+                ],
+            },
+        ];
+
+        setIncidents(generatedIncidents);
+
+        // Build event timeline from today's events
+        const recentEvents = events
+            .filter(e => e.eventType !== 'PRODUCTION')
+            .slice(-20)
+            .map(e => ({
+                time: new Date(e.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                type: e.eventType,
+                machine: e.machineName,
+                duration: e.duration,
+                loss: e.lossAmount || 0,
+                reason: e.reason,
+            }));
+        setTimeline(recentEvents.reverse());
     }, []);
 
-    const fetchIncidents = async () => {
-        try {
-            const response = await api.get('/api/incidents');
-            setIncidents(response.data.data || []);
-        } catch (error) {
-            console.error('Failed to fetch incidents:', error);
-            setIncidents(getMockIncidents());
-        } finally {
-            setIsLoading(false);
+    const filteredIncidents = incidents.filter((inc) => {
+        const matchesStatus = statusFilter === 'all' || inc.status === statusFilter;
+        const matchesSearch = inc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            inc.description.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesStatus && matchesSearch;
+    });
+
+    const getStatusStyle = (status) => {
+        switch (status) {
+            case 'active': return 'badge-danger';
+            case 'investigating': return 'badge-warning';
+            case 'resolved': return 'badge-success';
+            default: return 'badge-secondary';
         }
     };
 
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'ACTIVE': return 'badge-danger';
-            case 'INVESTIGATING': return 'badge-warning';
-            case 'MITIGATING': return 'badge-info';
-            case 'RESOLVED': return 'badge-success';
-            case 'CLOSED': return 'badge-secondary';
-            default: return 'badge-primary';
+    const getSeverityStyle = (severity) => {
+        switch (severity) {
+            case 'high': return 'text-red-600';
+            case 'medium': return 'text-amber-600';
+            case 'low': return 'text-gray-600';
+            default: return 'text-gray-600';
         }
     };
 
     const getStatusIcon = (status) => {
         switch (status) {
-            case 'ACTIVE': return <AlertTriangle className="w-4 h-4 text-red-400" />;
-            case 'INVESTIGATING': return <Clock className="w-4 h-4 text-yellow-400" />;
-            case 'RESOLVED': return <CheckCircle className="w-4 h-4 text-green-400" />;
-            default: return <AlertTriangle className="w-4 h-4 text-dark-400" />;
+            case 'active': return <AlertCircle className="w-5 h-5 text-red-600" />;
+            case 'investigating': return <Clock className="w-5 h-5 text-amber-600" />;
+            case 'resolved': return <CheckCircle className="w-5 h-5 text-accent-600" />;
+            default: return <AlertCircle className="w-5 h-5 text-gray-600" />;
         }
     };
 
-    const filteredIncidents = incidents.filter((incident) => {
-        const matchesFilter = filter === 'all' || incident.status === filter;
-        const matchesSearch = incident.title?.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesFilter && matchesSearch;
-    });
-
-    const statusCounts = {
-        all: incidents.length,
-        ACTIVE: incidents.filter((i) => i.status === 'ACTIVE').length,
-        INVESTIGATING: incidents.filter((i) => i.status === 'INVESTIGATING').length,
-        RESOLVED: incidents.filter((i) => i.status === 'RESOLVED' || i.status === 'CLOSED').length,
+    const stats = {
+        total: incidents.length,
+        active: incidents.filter(i => i.status === 'active').length,
+        investigating: incidents.filter(i => i.status === 'investigating').length,
+        resolved: incidents.filter(i => i.status === 'resolved').length,
+        totalLoss: incidents.reduce((sum, i) => sum + (i.actualLoss || i.estimatedLoss), 0),
+        hiddenLoss: incidents.filter(i => i.hidden).reduce((sum, i) => sum + i.estimatedLoss, 0),
     };
-
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-        );
-    }
 
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl lg:text-3xl font-display font-bold text-white">
-                        Incident Management
-                    </h1>
-                    <p className="text-dark-400 mt-1">Track and resolve operational incidents</p>
-                </div>
+            <div className="page-header">
+                <h1 className="page-title">Incidents & Anomalies</h1>
+                <p className="page-subtitle">Track, investigate, and resolve operational incidents</p>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                    { label: 'Total Incidents', value: statusCounts.all, color: 'primary' },
-                    { label: 'Active', value: statusCounts.ACTIVE, color: 'danger' },
-                    { label: 'Investigating', value: statusCounts.INVESTIGATING, color: 'warning' },
-                    { label: 'Resolved', value: statusCounts.RESOLVED, color: 'success' },
-                ].map((stat) => (
-                    <div key={stat.label} className="glass-card text-center py-4">
-                        <p className="text-2xl font-bold text-white">{stat.value}</p>
-                        <p className="text-sm text-dark-400">{stat.label}</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="card p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                        <AlertTriangle className="w-5 h-5 text-gray-600" />
                     </div>
-                ))}
+                    <div>
+                        <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                        <p className="text-xs text-gray-500">Total</p>
+                    </div>
+                </div>
+                <div className="card p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
+                        <AlertCircle className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div>
+                        <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
+                        <p className="text-xs text-gray-500">Active</p>
+                    </div>
+                </div>
+                <div className="card p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                        <Clock className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div>
+                        <p className="text-2xl font-bold text-gray-900">{stats.investigating}</p>
+                        <p className="text-xs text-gray-500">Investigating</p>
+                    </div>
+                </div>
+                <div className="card p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-accent-50 flex items-center justify-center">
+                        <CheckCircle className="w-5 h-5 text-accent-600" />
+                    </div>
+                    <div>
+                        <p className="text-2xl font-bold text-gray-900">{stats.resolved}</p>
+                        <p className="text-xs text-gray-500">Resolved</p>
+                    </div>
+                </div>
+                <div className="card p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
+                        <DollarSign className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div>
+                        <p className="text-xl font-bold text-gray-900">₹{(stats.totalLoss / 1000).toFixed(0)}K</p>
+                        <p className="text-xs text-gray-500">Total Loss</p>
+                    </div>
+                </div>
+                <div className="card p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
+                        <Zap className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                        <p className="text-xl font-bold text-gray-900">₹{(stats.hiddenLoss / 1000).toFixed(0)}K</p>
+                        <p className="text-xs text-gray-500">Hidden Loss</p>
+                    </div>
+                </div>
             </div>
 
             {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
-                    <input
-                        type="text"
-                        placeholder="Search incidents..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="input pl-10"
-                    />
-                </div>
-                <div className="flex gap-2">
-                    {['all', 'ACTIVE', 'INVESTIGATING', 'RESOLVED'].map((status) => (
-                        <button
-                            key={status}
-                            onClick={() => setFilter(status)}
-                            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${filter === status
-                                    ? 'bg-primary-600 text-white'
-                                    : 'bg-dark-800/50 text-dark-300 hover:bg-dark-700'
-                                }`}
-                        >
-                            {status === 'all' ? 'All' : status.charAt(0) + status.slice(1).toLowerCase()}
-                        </button>
-                    ))}
+            <div className="card p-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex-1 relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search incidents..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="input pl-10"
+                        />
+                    </div>
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="input w-auto"
+                    >
+                        <option value="all">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="investigating">Investigating</option>
+                        <option value="resolved">Resolved</option>
+                    </select>
                 </div>
             </div>
 
-            {/* Incidents List */}
+            {/* Incident List */}
             <div className="space-y-4">
-                {filteredIncidents.length === 0 ? (
-                    <div className="glass-card text-center py-12">
-                        <AlertTriangle className="w-12 h-12 text-dark-500 mx-auto mb-4" />
-                        <p className="text-dark-400">No incidents found</p>
-                    </div>
-                ) : (
-                    filteredIncidents.map((incident, index) => (
-                        <motion.div
-                            key={incident.id || index}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.05 }}
-                            className="glass-card p-0 overflow-hidden"
+                {filteredIncidents.map((incident) => (
+                    <div key={incident.id} className={`card ${incident.hidden ? 'border-purple-200' : ''}`}>
+                        <div
+                            className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                            onClick={() => setExpandedId(expandedId === incident.id ? null : incident.id)}
                         >
-                            {/* Header */}
-                            <div
-                                className="flex items-center gap-4 p-4 cursor-pointer hover:bg-dark-800/30 transition-colors"
-                                onClick={() => setExpandedId(expandedId === incident.id ? null : incident.id)}
-                            >
-                                <div className={`p-3 rounded-xl ${incident.status === 'ACTIVE' ? 'bg-red-500/20' :
-                                        incident.status === 'INVESTIGATING' ? 'bg-yellow-500/20' :
-                                            'bg-green-500/20'
-                                    }`}>
-                                    {getStatusIcon(incident.status)}
-                                </div>
+                            <div className="flex items-start gap-4">
+                                <div className="mt-1">{getStatusIcon(incident.status)}</div>
                                 <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <h3 className="font-semibold text-white truncate">{incident.title}</h3>
-                                        <span className={`badge ${getStatusColor(incident.status)}`}>
-                                            {incident.status}
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm text-gray-400">{incident.id}</span>
+                                                {incident.hidden && (
+                                                    <span className="badge bg-purple-100 text-purple-700">HIDDEN</span>
+                                                )}
+                                            </div>
+                                            <h3 className="font-semibold text-gray-900 mt-1">{incident.title}</h3>
+                                            <p className="text-sm text-gray-500 mt-1">{incident.description}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className={getStatusStyle(incident.status)}>
+                                                {incident.status}
+                                            </span>
+                                            {expandedId === incident.id ? (
+                                                <ChevronUp className="w-5 h-5 text-gray-400" />
+                                            ) : (
+                                                <ChevronDown className="w-5 h-5 text-gray-400" />
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4 mt-3 text-sm">
+                                        <span className={`font-medium ${getSeverityStyle(incident.severity)}`}>
+                                            {incident.severity.toUpperCase()}
+                                        </span>
+                                        <span className="text-gray-500">{incident.source}</span>
+                                        <span className="text-gray-500">
+                                            {incident.anomalies} anomalies
+                                        </span>
+                                        <span className="font-semibold text-red-600">
+                                            ₹{incident.estimatedLoss.toLocaleString()}
                                         </span>
                                     </div>
-                                    <p className="text-sm text-dark-400 truncate">{incident.description}</p>
                                 </div>
-                                <div className="text-right hidden sm:block">
-                                    <p className="text-lg font-semibold text-white">
-                                        ₹{incident.estimatedLoss?.toLocaleString() || 0}
-                                    </p>
-                                    <p className="text-xs text-dark-400">Estimated Loss</p>
+                            </div>
+                        </div>
+
+                        {/* Expanded Details */}
+                        {expandedId === incident.id && (
+                            <div className="px-4 pb-4 pt-0 border-t border-gray-100">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-500">Root Cause</p>
+                                            <p className="text-gray-900 mt-1">
+                                                {incident.rootCause || 'Under investigation'}
+                                            </p>
+                                        </div>
+                                        {incident.resolution && (
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-500">Resolution</p>
+                                                <p className="text-gray-900 mt-1">{incident.resolution}</p>
+                                            </div>
+                                        )}
+                                        {incident.assignee && (
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-500">Assigned To</p>
+                                                <p className="text-gray-900 mt-1">{incident.assignee}</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Timeline */}
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-500 mb-3">Timeline</p>
+                                        <div className="space-y-3">
+                                            {incident.timeline?.map((event, index) => (
+                                                <div key={index} className="flex gap-3">
+                                                    <span className="text-xs text-gray-400 w-20 flex-shrink-0">{event.time}</span>
+                                                    <div className="relative">
+                                                        <div className="absolute left-0 top-2 w-2 h-2 rounded-full bg-gray-300" />
+                                                        <p className="text-sm text-gray-700 pl-5">{event.event}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="text-dark-400">
-                                    {expandedId === incident.id ? (
-                                        <ChevronUp className="w-5 h-5" />
-                                    ) : (
-                                        <ChevronDown className="w-5 h-5" />
+                                <div className="flex gap-3 mt-6">
+                                    {incident.status !== 'resolved' && (
+                                        <>
+                                            <button className="btn-primary text-sm">
+                                                Update Status
+                                            </button>
+                                            <button className="btn-secondary text-sm">
+                                                Assign
+                                            </button>
+                                            <button className="btn-secondary text-sm">
+                                                Ask AOIA
+                                            </button>
+                                        </>
                                     )}
                                 </div>
                             </div>
-
-                            {/* Expanded Details */}
-                            {expandedId === incident.id && (
-                                <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    className="border-t border-dark-700/50"
-                                >
-                                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-sm text-dark-400 mb-1">Description</p>
-                                            <p className="text-white">{incident.description}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-dark-400 mb-1">Root Cause</p>
-                                            <p className="text-white">{incident.rootCause || 'Under investigation'}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-dark-400 mb-1">Start Time</p>
-                                            <p className="text-white">
-                                                {incident.startTime ? format(new Date(incident.startTime), 'PPpp') : 'N/A'}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-dark-400 mb-1">Resolution</p>
-                                            <p className="text-white">{incident.resolution || 'Pending'}</p>
-                                        </div>
-                                    </div>
-                                    <div className="p-4 border-t border-dark-700/50 flex gap-3">
-                                        <button className="btn-primary text-sm">
-                                            View Details
-                                            <ExternalLink className="w-4 h-4" />
-                                        </button>
-                                        <button className="btn-secondary text-sm">
-                                            Update Status
-                                        </button>
-                                        {incident.status !== 'RESOLVED' && (
-                                            <button className="btn-success text-sm">
-                                                <CheckCircle className="w-4 h-4" />
-                                                Mark Resolved
-                                            </button>
-                                        )}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </motion.div>
-                    ))
-                )}
+                        )}
+                    </div>
+                ))}
             </div>
         </div>
     );
-}
-
-function getMockIncidents() {
-    return [
-        {
-            id: '1',
-            title: 'Machine 1 Throughput Drop',
-            description: 'Production line 1 experienced a 25% drop in throughput during morning shift',
-            status: 'ACTIVE',
-            estimatedLoss: 45000,
-            startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-            rootCause: null,
-            resolution: null,
-        },
-        {
-            id: '2',
-            title: 'Shift B Idle Time Spike',
-            description: 'Abnormal idle time pattern detected during Shift B operations',
-            status: 'INVESTIGATING',
-            estimatedLoss: 28000,
-            startTime: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-            rootCause: 'Initial analysis suggests workflow bottleneck at station 3',
-            resolution: null,
-        },
-        {
-            id: '3',
-            title: 'Quality Control Alert',
-            description: 'Quality scores dropped below 90% threshold on multiple machines',
-            status: 'MITIGATING',
-            estimatedLoss: 62000,
-            startTime: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-            rootCause: 'Calibration drift detected on inspection sensors',
-            resolution: 'Recalibration in progress',
-        },
-        {
-            id: '4',
-            title: 'Morning Shift Overload',
-            description: 'Resource overload led to cascading delays across production floor',
-            status: 'RESOLVED',
-            estimatedLoss: 35000,
-            startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-            rootCause: 'Insufficient staffing during peak hours',
-            resolution: 'Adjusted shift scheduling and added buffer capacity',
-        },
-        {
-            id: '5',
-            title: 'Machine 3 Micro-Downtime',
-            description: 'Frequent micro-stoppages detected on Machine 3',
-            status: 'RESOLVED',
-            estimatedLoss: 18500,
-            startTime: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-            rootCause: 'Worn belt causing intermittent slippage',
-            resolution: 'Replaced belt and scheduled preventive maintenance',
-        },
-    ];
 }

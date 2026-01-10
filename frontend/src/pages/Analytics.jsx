@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import {
-    TrendingDown,
-    Filter,
     Calendar,
+    Filter,
     Download,
-    RefreshCw,
+    TrendingUp,
+    TrendingDown,
+    Eye,
+    EyeOff,
+    AlertTriangle,
+    Clock,
+    DollarSign,
 } from 'lucide-react';
 import {
-    AreaChart,
-    Area,
     BarChart,
     Bar,
     XAxis,
@@ -17,59 +19,107 @@ import {
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
-    Legend,
+    LineChart,
+    Line,
+    ComposedChart,
+    Area,
 } from 'recharts';
+import {
+    machines,
+    shifts,
+    generateHistoricalData,
+    generateShiftPerformance,
+} from '../data/demoData';
 
 export default function Analytics() {
     const [timeRange, setTimeRange] = useState('7d');
-    const [isLoading, setIsLoading] = useState(false);
+    const [showHiddenLosses, setShowHiddenLosses] = useState(false);
+    const [historicalData, setHistoricalData] = useState([]);
+    const [shiftData, setShiftData] = useState([]);
 
-    const shiftData = [
-        { name: 'Shift A', utilization: 85, throughput: 92, idleTime: 8 },
-        { name: 'Shift B', utilization: 72, throughput: 78, idleTime: 15 },
-        { name: 'Shift C', utilization: 88, throughput: 95, idleTime: 6 },
-    ];
+    useEffect(() => {
+        const history = generateHistoricalData();
+        setHistoricalData(history);
+        setShiftData(generateShiftPerformance(new Date()));
+    }, []);
 
-    const machineData = [
-        { name: 'Machine 1', efficiency: 92, downtime: 3, quality: 98 },
-        { name: 'Machine 2', efficiency: 78, downtime: 12, quality: 94 },
-        { name: 'Machine 3', efficiency: 85, downtime: 7, quality: 96 },
-        { name: 'Machine 4', efficiency: 90, downtime: 4, quality: 97 },
-        { name: 'Machine 5', efficiency: 82, downtime: 9, quality: 95 },
-    ];
+    // Build heatmap data (Machine × Day)
+    const heatmapData = machines.map(machine => {
+        const row = { source: machine.name, id: machine.id };
+        historicalData.forEach((day, index) => {
+            const machineEvents = day.events.filter(e => e.machineId === machine.id);
+            const productionEvents = machineEvents.filter(e => e.eventType === 'PRODUCTION');
+            const avgEfficiency = productionEvents.length > 0
+                ? productionEvents.reduce((sum, e) => sum + e.efficiency, 0) / productionEvents.length
+                : 0;
+            row[day.dayName] = Math.round(avgEfficiency);
 
+            // Track losses separately
+            const totalLoss = machineEvents
+                .filter(e => e.lossAmount)
+                .reduce((sum, e) => sum + e.lossAmount, 0);
+            row[`${day.dayName}_loss`] = totalLoss;
+        });
+        return row;
+    });
+
+    // Loss by source
+    const lossBySource = machines.map(machine => {
+        const totalLoss = historicalData.reduce((sum, day) => {
+            const machineEvents = day.events.filter(e => e.machineId === machine.id && e.lossAmount);
+            return sum + machineEvents.reduce((s, e) => s + e.lossAmount, 0);
+        }, 0);
+        return {
+            source: machine.id,
+            name: machine.name,
+            loss: totalLoss,
+            costPerHour: machine.costPerHour,
+        };
+    }).sort((a, b) => b.loss - a.loss);
+
+    // Hourly pattern (mock data for now)
     const hourlyData = Array.from({ length: 24 }, (_, i) => ({
-        hour: `${i.toString().padStart(2, '0')}:00`,
-        utilization: 60 + Math.random() * 35,
-        anomalies: Math.floor(Math.random() * 5),
+        hour: i,
+        hourLabel: `${i}:00`,
+        efficiency: 60 + Math.random() * 35 + (i >= 10 && i <= 14 ? 10 : 0) - (i >= 22 || i <= 5 ? 15 : 0),
+        loss: Math.floor(Math.random() * 5000 + (i >= 22 || i <= 5 ? 3000 : 1000)),
     }));
 
-    const heatmapData = generateHeatmapData();
+    // Shift comparison
+    const shiftComparison = shiftData.map(s => ({
+        shift: s.shiftName,
+        efficiency: s.actualEfficiency,
+        target: s.targetEfficiency,
+        loss: s.lossAmount,
+        operators: s.operators,
+        status: s.status,
+    }));
+
+    const getHeatmapColor = (value) => {
+        if (value >= 90) return 'bg-accent-100 text-accent-700';
+        if (value >= 80) return 'bg-blue-100 text-blue-700';
+        if (value >= 70) return 'bg-amber-100 text-amber-700';
+        if (value > 0) return 'bg-red-100 text-red-700';
+        return 'bg-gray-100 text-gray-400';
+    };
+
+    const days = historicalData.map(d => d.dayName);
 
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl lg:text-3xl font-display font-bold text-white">
-                        Analytics & Insights
-                    </h1>
-                    <p className="text-dark-400 mt-1">Deep-dive operational analysis and trends</p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="page-header mb-0">
+                    <h1 className="page-title">Operational Analytics</h1>
+                    <p className="page-subtitle">Deep-dive into performance patterns and losses</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <select
-                        value={timeRange}
-                        onChange={(e) => setTimeRange(e.target.value)}
-                        className="px-4 py-2 rounded-xl bg-dark-800/50 border border-dark-700 text-white text-sm focus:border-primary-500 outline-none"
+                    <button
+                        onClick={() => setShowHiddenLosses(!showHiddenLosses)}
+                        className={`btn ${showHiddenLosses ? 'btn-primary' : 'btn-secondary'}`}
                     >
-                        <option value="24h">Last 24 hours</option>
-                        <option value="7d">Last 7 days</option>
-                        <option value="30d">Last 30 days</option>
-                        <option value="90d">Last 90 days</option>
-                    </select>
-                    <button className="btn-secondary">
-                        <Filter className="w-4 h-4" />
-                        Filters
+                        {showHiddenLosses ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                        Hidden Losses
                     </button>
                     <button className="btn-secondary">
                         <Download className="w-4 h-4" />
@@ -78,182 +128,253 @@ export default function Analytics() {
                 </div>
             </div>
 
-            {/* Loss Heatmap */}
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="glass-card"
-            >
-                <div className="flex items-center justify-between mb-6">
-                    <div>
-                        <h3 className="text-lg font-semibold text-white">Loss Heatmap</h3>
-                        <p className="text-sm text-dark-400">Problem areas by source and day</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs text-dark-400">Intensity:</span>
-                        <div className="flex items-center gap-1">
-                            <div className="w-4 h-4 rounded bg-green-500/30" />
-                            <div className="w-4 h-4 rounded bg-yellow-500/50" />
-                            <div className="w-4 h-4 rounded bg-orange-500/70" />
-                            <div className="w-4 h-4 rounded bg-red-500/90" />
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="card p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
+                            <DollarSign className="w-5 h-5 text-red-600" />
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold text-gray-900">
+                                ₹{(historicalData.reduce((s, d) => s + d.totalLoss, 0) / 1000).toFixed(0)}K
+                            </p>
+                            <p className="text-sm text-gray-500">Weekly Loss</p>
                         </div>
                     </div>
                 </div>
-                <div className="overflow-x-auto">
-                    <div className="min-w-[600px]">
-                        {/* Days header */}
-                        <div className="flex mb-2">
-                            <div className="w-24" />
-                            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-                                <div key={day} className="flex-1 text-center text-xs text-dark-400">
-                                    {day}
-                                </div>
-                            ))}
+                <div className="card p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                            <Clock className="w-5 h-5 text-amber-600" />
                         </div>
-                        {/* Heatmap rows */}
-                        {heatmapData.map((row) => (
-                            <div key={row.source} className="flex items-center mb-2">
-                                <div className="w-24 text-sm text-dark-300 truncate pr-2">{row.source}</div>
-                                {row.values.map((value, i) => (
-                                    <div key={i} className="flex-1 px-0.5">
-                                        <div
-                                            className="h-8 rounded transition-all hover:scale-110 cursor-pointer"
-                                            style={{
-                                                backgroundColor: getHeatmapColor(value),
-                                            }}
-                                            title={`${row.source} - Day ${i + 1}: ${value} issues`}
-                                        />
-                                    </div>
+                        <div>
+                            <p className="text-2xl font-bold text-gray-900">
+                                {historicalData.reduce((s, d) => s + d.events.filter(e => e.eventType === 'IDLE').length, 0)}
+                            </p>
+                            <p className="text-sm text-gray-500">Idle Events</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="card p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center">
+                            <TrendingUp className="w-5 h-5 text-primary-600" />
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold text-gray-900">
+                                {(historicalData.reduce((s, d) => s + d.efficiency, 0) / historicalData.length || 0).toFixed(1)}%
+                            </p>
+                            <p className="text-sm text-gray-500">Avg Efficiency</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="card p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
+                            <EyeOff className="w-5 h-5 text-purple-600" />
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold text-gray-900">
+                                ₹{(historicalData.reduce((s, d) => s + d.losses.microDowntime, 0) / 1000).toFixed(0)}K
+                            </p>
+                            <p className="text-sm text-gray-500">Hidden Loss</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Efficiency Heatmap */}
+            <div className="card p-6">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 className="text-lg font-semibold text-gray-900">Efficiency Heatmap</h3>
+                        <p className="text-sm text-gray-500">Machine performance by day</p>
+                    </div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full">
+                        <thead>
+                            <tr>
+                                <th className="text-left text-sm font-medium text-gray-500 pb-4 pr-4">Machine</th>
+                                {days.map((day) => (
+                                    <th key={day} className="text-center text-sm font-medium text-gray-500 pb-4 px-2 min-w-[60px]">
+                                        {day}
+                                    </th>
                                 ))}
+                                <th className="text-right text-sm font-medium text-gray-500 pb-4 pl-4">Total Loss</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {heatmapData.map((row) => (
+                                <tr key={row.id}>
+                                    <td className="text-sm font-medium text-gray-900 py-2 pr-4">
+                                        <div>
+                                            <span className="font-semibold">{row.id}</span>
+                                            <p className="text-xs text-gray-500 truncate max-w-[120px]">{row.source}</p>
+                                        </div>
+                                    </td>
+                                    {days.map((day) => (
+                                        <td key={day} className="px-1 py-2">
+                                            <div className={`h-12 rounded-lg flex flex-col items-center justify-center ${getHeatmapColor(row[day])}`}>
+                                                <span className="text-sm font-semibold">{row[day]}%</span>
+                                                {showHiddenLosses && row[`${day}_loss`] > 0 && (
+                                                    <span className="text-xs opacity-75">-₹{(row[`${day}_loss`] / 1000).toFixed(0)}k</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                    ))}
+                                    <td className="text-right pl-4">
+                                        <span className="font-semibold text-red-600">
+                                            ₹{days.reduce((sum, day) => sum + (row[`${day}_loss`] || 0), 0).toLocaleString()}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="flex items-center justify-center gap-6 mt-6 text-sm border-t border-gray-100 pt-4">
+                    <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded bg-accent-100" />
+                        <span className="text-gray-600">≥90% Excellent</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded bg-blue-100" />
+                        <span className="text-gray-600">80-89% Good</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded bg-amber-100" />
+                        <span className="text-gray-600">70-79% Fair</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded bg-red-100" />
+                        <span className="text-gray-600">&lt;70% Poor</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Charts Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Loss by Machine */}
+                <div className="card p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-6">Loss by Machine</h3>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={lossBySource} layout="vertical">
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                <XAxis type="number" stroke="#6b7280" fontSize={12} tickFormatter={(v) => `₹${v / 1000}k`} />
+                                <YAxis dataKey="source" type="category" stroke="#6b7280" fontSize={12} width={50} />
+                                <Tooltip
+                                    formatter={(value) => [`₹${value.toLocaleString()}`, 'Loss']}
+                                    contentStyle={{
+                                        backgroundColor: 'white',
+                                        border: '1px solid #e5e7eb',
+                                        borderRadius: '8px',
+                                    }}
+                                />
+                                <Bar dataKey="loss" fill="#ef4444" radius={[0, 4, 4, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Shift Comparison */}
+                <div className="card p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-6">Shift Performance</h3>
+                    <div className="space-y-6">
+                        {shiftComparison.map((shift) => (
+                            <div key={shift.shift}>
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium text-gray-900">{shift.shift}</span>
+                                        <span className={`badge ${shift.status === 'ON_TARGET' ? 'badge-success' :
+                                                shift.status === 'BELOW_TARGET' ? 'badge-warning' : 'badge-danger'
+                                            }`}>
+                                            {shift.status.replace('_', ' ')}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-4 text-sm">
+                                        <span className={shift.efficiency >= shift.target ? 'text-accent-600 font-semibold' : 'text-red-600 font-semibold'}>
+                                            {shift.efficiency.toFixed(1)}%
+                                        </span>
+                                        <span className="text-gray-500">
+                                            Loss: ₹{shift.loss.toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="relative h-3 bg-gray-100 rounded-full overflow-hidden">
+                                    {/* Target line */}
+                                    <div
+                                        className="absolute top-0 bottom-0 w-0.5 bg-gray-400 z-10"
+                                        style={{ left: `${shift.target}%` }}
+                                    />
+                                    {/* Efficiency bar */}
+                                    <div
+                                        className={`h-full rounded-full transition-all duration-500 ${shift.efficiency >= shift.target ? 'bg-accent-500' :
+                                                shift.efficiency >= shift.target - 10 ? 'bg-amber-500' : 'bg-red-500'
+                                            }`}
+                                        style={{ width: `${shift.efficiency}%` }}
+                                    />
+                                </div>
                             </div>
                         ))}
                     </div>
                 </div>
-            </motion.div>
-
-            {/* Charts Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Shift Performance */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="glass-card"
-                >
-                    <h3 className="text-lg font-semibold text-white mb-6">Shift Performance</h3>
-                    <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={shiftData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                <XAxis dataKey="name" stroke="#64748b" />
-                                <YAxis stroke="#64748b" />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '12px' }}
-                                />
-                                <Legend />
-                                <Bar dataKey="utilization" fill="#8b5cf6" name="Utilization %" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="throughput" fill="#06b6d4" name="Throughput %" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="idleTime" fill="#f59e0b" name="Idle Time %" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </motion.div>
-
-                {/* Machine Efficiency */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="glass-card"
-                >
-                    <h3 className="text-lg font-semibold text-white mb-6">Machine Efficiency</h3>
-                    <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={machineData} layout="vertical">
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                <XAxis type="number" stroke="#64748b" />
-                                <YAxis dataKey="name" type="category" stroke="#64748b" width={80} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '12px' }}
-                                />
-                                <Bar dataKey="efficiency" fill="#22c55e" name="Efficiency %" radius={[0, 4, 4, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </motion.div>
             </div>
 
             {/* Hourly Pattern */}
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="glass-card"
-            >
-                <h3 className="text-lg font-semibold text-white mb-6">Hourly Utilization Pattern</h3>
+            <div className="card p-6">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 className="text-lg font-semibold text-gray-900">Hourly Pattern</h3>
+                        <p className="text-sm text-gray-500">Efficiency and loss by hour of day</p>
+                    </div>
+                </div>
                 <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={hourlyData}>
-                            <defs>
-                                <linearGradient id="utilizationGradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                            <XAxis dataKey="hour" stroke="#64748b" interval={2} />
-                            <YAxis stroke="#64748b" />
+                        <ComposedChart data={hourlyData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                            <XAxis dataKey="hour" stroke="#6b7280" fontSize={10} tickFormatter={(v) => `${v}:00`} />
+                            <YAxis yAxisId="left" stroke="#6b7280" fontSize={12} domain={[0, 100]} />
+                            <YAxis yAxisId="right" orientation="right" stroke="#ef4444" fontSize={12} tickFormatter={(v) => `₹${v / 1000}k`} />
                             <Tooltip
-                                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '12px' }}
+                                contentStyle={{
+                                    backgroundColor: 'white',
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: '8px',
+                                }}
                             />
                             <Area
+                                yAxisId="left"
                                 type="monotone"
-                                dataKey="utilization"
-                                stroke="#06b6d4"
+                                dataKey="efficiency"
+                                fill="#c7d2fe"
+                                stroke="#4f46e5"
                                 strokeWidth={2}
-                                fill="url(#utilizationGradient)"
                             />
-                        </AreaChart>
+                            <Line
+                                yAxisId="right"
+                                type="monotone"
+                                dataKey="loss"
+                                stroke="#ef4444"
+                                strokeWidth={2}
+                                dot={false}
+                            />
+                        </ComposedChart>
                     </ResponsiveContainer>
                 </div>
-            </motion.div>
-
-            {/* Summary Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                    { label: 'Avg. Utilization', value: '82.5%', trend: '+3.2%' },
-                    { label: 'Total Downtime', value: '4.2h', trend: '-15%' },
-                    { label: 'Anomalies Detected', value: '23', trend: '-8' },
-                    { label: 'Resolution Rate', value: '91%', trend: '+5%' },
-                ].map((stat, i) => (
-                    <motion.div
-                        key={stat.label}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4 + i * 0.1 }}
-                        className="glass-card text-center"
-                    >
-                        <p className="text-sm text-dark-400 mb-2">{stat.label}</p>
-                        <p className="text-2xl font-bold text-white">{stat.value}</p>
-                        <p className="text-sm text-green-400 mt-1">{stat.trend}</p>
-                    </motion.div>
-                ))}
+                <div className="flex items-center justify-center gap-6 mt-4 text-sm">
+                    <div className="flex items-center gap-2">
+                        <div className="w-4 h-1 bg-primary-500 rounded" />
+                        <span className="text-gray-600">Efficiency %</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-4 h-1 bg-red-500 rounded" />
+                        <span className="text-gray-600">Loss (₹)</span>
+                    </div>
+                </div>
             </div>
         </div>
     );
-}
-
-function generateHeatmapData() {
-    const sources = ['Machine 1', 'Machine 2', 'Machine 3', 'Shift A', 'Shift B', 'Shift C'];
-    return sources.map((source) => ({
-        source,
-        values: Array.from({ length: 7 }, () => Math.floor(Math.random() * 10)),
-    }));
-}
-
-function getHeatmapColor(value) {
-    if (value <= 2) return 'rgba(34, 197, 94, 0.3)';
-    if (value <= 4) return 'rgba(234, 179, 8, 0.5)';
-    if (value <= 6) return 'rgba(249, 115, 22, 0.7)';
-    return 'rgba(239, 68, 68, 0.9)';
 }
