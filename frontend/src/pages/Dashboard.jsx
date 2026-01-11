@@ -172,7 +172,7 @@ export default function Dashboard() {
                 <KPICard
                     icon={Factory}
                     label="Active Machines"
-                    value={`${realtimeMetrics?.activeMachines || 0}/${realtimeMetrics?.totalMachines || 5}`}
+                    value={`${machineStatus.filter(m => m.status === 'running').length}/${machines.length}`}
                     subtitle="Running now"
                     iconColor="text-accent-600"
                     iconBg="bg-accent-50"

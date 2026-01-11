@@ -40,6 +40,18 @@ app.use(express.urlencoded({ extended: true }));
 // Make io accessible in routes
 app.set('io', io);
 
+// Root route
+app.get('/', (req, res) => {
+    res.json({
+        name: 'AOIA Backend',
+        status: 'running',
+        endpoints: {
+            health: '/health',
+            docs: '/docs'
+        }
+    });
+});
+
 // Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'healthy', timestamp: new Date().toISOString() });

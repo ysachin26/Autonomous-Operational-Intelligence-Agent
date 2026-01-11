@@ -322,8 +322,8 @@ What would you like to explore?`;
                         className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
                     >
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${message.role === 'user'
-                                ? 'bg-primary-100'
-                                : 'bg-gradient-to-br from-primary-500 to-primary-700'
+                            ? 'bg-primary-100'
+                            : 'bg-gradient-to-br from-primary-500 to-primary-700'
                             }`}>
                             {message.role === 'user' ? (
                                 <User className="w-4 h-4 text-primary-600" />
@@ -333,8 +333,8 @@ What would you like to explore?`;
                         </div>
                         <div className={`max-w-[85%] ${message.role === 'user' ? 'text-right' : ''}`}>
                             <div className={`inline-block rounded-xl px-4 py-3 ${message.role === 'user'
-                                    ? 'bg-primary-600 text-white'
-                                    : 'bg-gray-50 text-gray-900 border border-gray-200'
+                                ? 'bg-primary-600 text-white'
+                                : 'bg-gray-50 text-gray-900 border border-gray-200'
                                 }`}>
                                 <MessageContent content={message.content} isUser={message.role === 'user'} />
                             </div>
@@ -406,11 +406,11 @@ function MessageContent({ content, isUser }) {
                 }
                 // List items
                 if (line.startsWith('- ') || line.startsWith('• ')) {
-                    return <p key={i} className="pl-3 py-0.5 text-sm">{formatText(line)}</p>;
+                    return <p key={i} className="pl-3 py-0.5 text-sm" dangerouslySetInnerHTML={{ __html: formatText(line) }} />;
                 }
                 // Numbered items
                 if (/^\d+\.\s/.test(line)) {
-                    return <p key={i} className="pl-3 py-0.5 text-sm">{formatText(line)}</p>;
+                    return <p key={i} className="pl-3 py-0.5 text-sm" dangerouslySetInnerHTML={{ __html: formatText(line) }} />;
                 }
                 // Table rows
                 if (line.startsWith('|')) {
