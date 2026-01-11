@@ -12,10 +12,12 @@ import {
     Search,
     LogOut,
     ChevronDown,
+    Users,
 } from 'lucide-react';
 
 const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Sales (ASLOA)', href: '/sales', icon: Users },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Incidents', href: '/incidents', icon: AlertTriangle },
     { name: 'AI Agent', href: '/agent', icon: Bot },

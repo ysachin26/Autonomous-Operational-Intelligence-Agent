@@ -7,6 +7,7 @@ import Analytics from './pages/Analytics';
 import Incidents from './pages/Incidents';
 import Agent from './pages/Agent';
 import Settings from './pages/Settings';
+import Sales from './pages/Sales';
 
 // Demo user for testing (authentication bypassed)
 const demoUser = {
@@ -35,6 +36,7 @@ function App() {
                     <Routes>
                         <Route path="/" element={<Navigate to="/dashboard" replace />} />
                         <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/sales" element={<Sales />} />
                         <Route path="/analytics" element={<Analytics />} />
                         <Route path="/incidents" element={<Incidents />} />
                         <Route path="/agent" element={<Agent />} />
