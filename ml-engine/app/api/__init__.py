@@ -9,6 +9,7 @@ from app.api.chat import router as chat_router
 from app.api.optimize import router as optimize_router
 from app.api.pipeline import router as pipeline_router
 from app.api.demo import router as demo_router
+from app.api.asloa import router as asloa_router
 
 router = APIRouter()
 
@@ -18,3 +19,4 @@ router.include_router(chat_router, tags=["Chat & Reasoning"])
 router.include_router(optimize_router, prefix="/optimize", tags=["Optimization"])
 router.include_router(pipeline_router, tags=["AOIA Pipeline"])
 router.include_router(demo_router, tags=["Demonstrations"])
+router.include_router(asloa_router, tags=["ASLOA Sales Automation"])
